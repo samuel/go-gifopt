@@ -1,0 +1,68 @@
+version: "2"
+
+linters:
+  default: standard
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - copyloopvar
+    - dupword
+    - durationcheck
+    - embeddedstructfieldcheck
+    - errname
+    - errorlint
+    - exhaustive
+    - forcetypeassert
+    - gocheckcompilerdirectives
+    - gochecknoinits
+    - gochecksumtype
+    - gocritic
+    - godot
+    - gosec
+    - iface
+    - intrange
+    - iotamixing
+    - makezero
+    - mirror
+    - misspell
+    - modernize
+    - nakedret
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - nolintlint
+    - perfsprint
+    - predeclared
+    - reassign
+    - recvcheck
+    - revive
+    - sloglint
+    - testableexamples
+    - thelper
+    - unconvert
+    - unparam
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+  settings:
+    gosec:
+      excludes:
+        - G115 # Integer narrowing is how palette indices and LZW codes are written.
+        - G304 # The CLIs open the paths they are given.
+        - G306 # Output GIFs are meant to be world-readable.
+        - G602 # False positives on fixed-size arrays guarded by a length check.
+    misspell:
+      locale: US
+  exclusions:
+    rules:
+      - path: _test\.go
+        linters:
+          - forcetypeassert
+          - gosec
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

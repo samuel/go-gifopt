@@ -1,0 +1,19 @@
+.DS_Store
+
+# Editor / IDE
+.idea/
+.vscode/
+
+# Compiled command binaries. Do not add a bare `/gifdiff` here: it would match
+# the gifdiff package directory and silently exclude the package from commits.
+# A bare `go build ./cmd/gifdiff` refuses to write over the directory anyway;
+# `go build -o gifdiff` lands the binary inside it, which is what this covers.
+/gifcomp
+/gifdiff/gifdiff
+
+# Optimizer output and scratch artifacts
+*_opt.gif
+/gifanim/out/
+/test.gif
+/test2.gif
+/test_*.gif
