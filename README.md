@@ -3,6 +3,8 @@ gifopt
 
 Makes GIFs smaller without changing what they look like.
 
+API documentation: <https://pkg.go.dev/samuelks.com/gifopt>
+
 ```go
 import "samuelks.com/gifopt"
 
