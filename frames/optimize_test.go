@@ -1,13 +1,16 @@
 package frames
 
 import (
+	"bytes"
 	"image"
 	"image/color"
 	"image/gif"
+	"io"
 	"strings"
 	"testing"
 
 	"samuelks.com/gifopt/gifdiff"
+	"samuelks.com/gifopt/gifenc"
 	"samuelks.com/gifopt/internal/gifcanvas"
 )
 
@@ -1161,5 +1164,66 @@ func TestOptimizeToleranceBoundsTheError(t *testing.T) {
 			t.Errorf("tolerance %d: pixels changed by up to %d, which is over the bound",
 				tc.tolerance, worst)
 		}
+	}
+}
+
+func TestOptimizeClipsFramesToScreen(t *testing.T) {
+	// No encoder accepts a frame reaching above or left of the screen, and nothing
+	// there is ever shown, so every frame has to come out at non-negative
+	// coordinates on every return path, including the ones that keep the frames.
+	pal := testPalette()
+	tests := []struct {
+		name   string
+		frames []image.Rectangle
+	}{
+		{"single frame", []image.Rectangle{image.Rect(-2, -1, 3, 2)}},
+		{"single frame on one axis", []image.Rectangle{image.Rect(1, -2, 4, 2)}},
+		{"single frame entirely off screen", []image.Rectangle{image.Rect(-3, -3, -1, -1)}},
+		{"two frames", []image.Rectangle{image.Rect(-2, -1, 4, 3), image.Rect(-1, -2, 2, 2)}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			build := func() *gif.GIF {
+				var ims []*image.Paletted
+				var delays []int
+				for i, r := range tc.frames {
+					im := image.NewPaletted(r, pal)
+					for j := range im.Pix {
+						im.Pix[j] = byte((i + j) % 3)
+					}
+					ims = append(ims, im)
+					delays = append(delays, 10)
+				}
+				return testGIF(ims, delays, 4, 3)
+			}
+			g := build()
+			if err := Optimize(g, Config{}); err != nil {
+				t.Fatal(err)
+			}
+			for i, im := range g.Image {
+				if im.Rect.Min.X < 0 || im.Rect.Min.Y < 0 {
+					t.Errorf("frame %d at %v reaches off screen", i, im.Rect)
+				}
+			}
+			for _, enc := range []struct {
+				name   string
+				encode func(io.Writer, *gif.GIF) error
+			}{
+				{"stdlib", gif.EncodeAll},
+				{"gifenc", func(w io.Writer, g *gif.GIF) error { return gifenc.EncodeAll(w, g, nil) }},
+			} {
+				var buf bytes.Buffer
+				if err := enc.encode(&buf, g); err != nil {
+					t.Fatalf("%s: encode: %v", enc.name, err)
+				}
+				out, err := gif.DecodeAll(&buf)
+				if err != nil {
+					t.Fatalf("%s: decode: %v", enc.name, err)
+				}
+				if res := gifdiff.Compare(build(), out); res.HasVisualDiff() {
+					t.Errorf("%s: rendering changed:\n  %s", enc.name, strings.Join(res.VisualMessages(), "\n  "))
+				}
+			}
+		})
 	}
 }

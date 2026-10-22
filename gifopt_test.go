@@ -16,6 +16,9 @@ import (
 
 func TestOptimizeIsLossless(t *testing.T) {
 	for _, f := range giftest.Fixtures() {
+		if f.Unencodable {
+			continue
+		}
 		for level := gifopt.LevelDefault; level <= gifopt.LevelThorough; level++ {
 			t.Run(f.Name, func(t *testing.T) {
 				var in bytes.Buffer

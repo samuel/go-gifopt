@@ -8,6 +8,7 @@ import (
 	"image"
 	"image/color"
 	"image/gif"
+	"math"
 
 	"samuelks.com/gifopt/internal/gifcanvas"
 )
@@ -114,13 +115,13 @@ func Optimize(g *gif.GIF, cfg Config) error {
 	if len(g.Delay) != len(g.Image) {
 		return fmt.Errorf("frames: delay count %d does not match image count %d", len(g.Delay), len(g.Image))
 	}
-	// TODO: account for negative min X and Y just in case
 	for i, im := range g.Image {
 		if len(im.Palette) == 0 {
 			return fmt.Errorf("frames: image %d has no palette", i)
 		}
 	}
 	cfg.LossyTransparencyTolerance = min(max(cfg.LossyTransparencyTolerance, 0), 255)
+	clipToScreen(g)
 
 	// Match the transparent entry's color type to the rest of the palette so direct
 	// comparisons work.
@@ -186,6 +187,19 @@ func Optimize(g *gif.GIF, cfg Config) error {
 	}
 	g.Image, g.Delay, g.Disposal = images, outDelays, outDisposal
 	return nil
+}
+
+// clipToScreen crops every frame to the part at non-negative coordinates. The canvas
+// starts at the origin, so nothing above or left of it is ever shown, and no encoder
+// accepts a frame that reaches there. Frames past the bottom-right edge are left
+// alone, because the logical screen grows to fit them.
+func clipToScreen(g *gif.GIF) {
+	screen := image.Rect(0, 0, math.MaxInt, math.MaxInt)
+	for i, im := range g.Image {
+		if r := im.Rect.Intersect(screen); r != im.Rect {
+			g.Image[i] = im.SubImage(r).(*image.Paletted) //nolint:forcetypeassert // SubImage of a Paletted is always a Paletted.
+		}
+	}
 }
 
 // backgroundColor returns the color g.BackgroundIndex refers to, or nil when there

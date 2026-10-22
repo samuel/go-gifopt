@@ -20,6 +20,9 @@ type Fixture struct {
 	// GIF builds a fresh GIF. Optimize works in place, so every call must return new
 	// images.
 	GIF func() *gif.GIF
+	// Unencodable marks a GIF that is valid input to Optimize but that no encoder
+	// accepts as it is.
+	Unencodable bool
 }
 
 const (
@@ -252,6 +255,46 @@ func Fixtures() []Fixture {
 				}
 				// Frames cover 8x6 of a 16x12 logical screen.
 				return animation(ims, []int{10, 10, 10}, nil, pal)
+			},
+		},
+		{
+			Name:        "negative-origin",
+			Why:         "hand-built frames reaching above and left of the screen, on both axes and on one; the part off screen is never shown",
+			Unencodable: true,
+			GIF: func() *gif.GIF {
+				pal := basePalette()
+				first := filled(image.Rect(-3, -2, fw, fh), pal, 0)
+				rectIn(first, image.Rect(-3, -2, 4, 3), 1)
+				second := filled(image.Rect(-4, -4, 6, 5), pal, 2)
+				rectIn(second, image.Rect(-4, -4, 0, 0), 3)
+				third := filled(image.Rect(2, -3, 10, 4), pal, 4)
+				rectIn(third, image.Rect(3, -3, 8, 2), 3)
+				return animation([]*image.Paletted{first, second, third},
+					[]int{10, 10, 10}, nil, pal)
+			},
+		},
+		{
+			Name:        "negative-origin-single-frame",
+			Why:         "a single frame reaching above and left of the screen, which Optimize returns without building deltas",
+			Unencodable: true,
+			GIF: func() *gif.GIF {
+				pal := basePalette()
+				im := filled(image.Rect(-3, -2, 10, 8), pal, 0)
+				rectIn(im, image.Rect(-3, -2, 5, 4), 2)
+				return animation([]*image.Paletted{im}, []int{10}, nil, pal)
+			},
+		},
+		{
+			Name:        "frame-entirely-off-screen",
+			Why:         "a frame wholly above and left of the screen, which shows nothing",
+			Unencodable: true,
+			GIF: func() *gif.GIF {
+				pal := basePalette()
+				first := filled(image.Rect(0, 0, fw, fh), pal, 0)
+				hidden := filled(image.Rect(-6, -6, -1, -1), pal, 1)
+				third := filled(image.Rect(4, 4, 8, 8), pal, 3)
+				return animation([]*image.Paletted{first, hidden, third},
+					[]int{10, 10, 10}, nil, pal)
 			},
 		},
 	}

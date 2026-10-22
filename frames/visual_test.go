@@ -231,6 +231,9 @@ func TestEncodersAreLossless(t *testing.T) {
 		{"gifenc", encodeGifenc},
 	}
 	for _, f := range giftest.Fixtures() {
+		if f.Unencodable {
+			continue
+		}
 		for _, enc := range encoders {
 			t.Run(f.Name+"/"+enc.name, func(t *testing.T) {
 				orig := f.GIF()
