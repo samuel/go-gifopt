@@ -32,10 +32,10 @@ type Options struct {
 	SplitRuns bool
 	// SmartGreedy runs an additional greedy DP sweep after the non-greedy one, keeping
 	// the better result per block start. It only applies with NonGreedy, and should
-	// stay on with it: it costs 28% to 39% of the encoding time for little size gain,
-	// but prevents non-greedy matching from compressing worse than plain greedy. To go
+	// stay on with it: it costs 30% of the encoding time for 0.2% in size, and
+	// prevents non-greedy matching from compressing worse than plain greedy. To go
 	// faster, turn NonGreedy off instead, which is three times cheaper than the pair
-	// and costs about 0.4% in size.
+	// and costs about 0.7% in size.
 	SmartGreedy bool
 	// StartWithClearCode prepends an initial clear code (required by most decoders, default true).
 	StartWithClearCode bool
@@ -60,9 +60,9 @@ func DefaultOptions() Options {
 // autoAlignmentPositions is the default for Options.AlignmentPositions. Frames no
 // larger than this are searched at every byte.
 //
-// It is the knee of the measured curve: over the corpus it comes within 0.77% of
-// searching 2048 positions for 5.7x less time, and the marginal return per second of
-// extra encoding falls from 0.025%/s (128 to 256) to 0.002%/s (512 to 2048).
+// It is the knee of the measured curve: over the corpus it comes within 0.78% of
+// searching 2048 positions for 7.7x less time, and the size saved per extra second of
+// encoding falls more than tenfold from 128 to 256 positions to 512 to 2048.
 const autoAlignmentPositions = 256
 
 // resolveAlignment returns the search granularity for n bytes of input, expanding a
@@ -83,6 +83,13 @@ func resolveAlignment(alignment, positions, n int) int {
 // Encode compresses data using optimized GIF LZW and returns GIF sub-block bytes.
 // minCodeSize is typically ceil(log2(numColors)) clamped to [2,8].
 func Encode(data []byte, minCodeSize int, opts Options) ([]byte, error) {
+	return (*Workers)(nil).Encode(data, minCodeSize, opts)
+}
+
+// Encode is the package-level Encode, run as one of w's workers. It waits for a worker
+// to be free, and borrows any others that are idle. A nil w searches on the calling
+// goroutine alone.
+func (w *Workers) Encode(data []byte, minCodeSize int, opts Options) ([]byte, error) {
 	if minCodeSize < 2 || minCodeSize > 8 {
 		return nil, fmt.Errorf("lzwopt: minCodeSize %d out of range [2,8]", minCodeSize)
 	}
@@ -95,12 +102,29 @@ func Encode(data []byte, minCodeSize int, opts Options) ([]byte, error) {
 	if lo := (1 << minCodeSize) + 2; maxDict < lo || maxDict > maxDictionary {
 		return nil, fmt.Errorf("lzwopt: MaxDictionary %d out of range [%d,%d]", maxDict, lo, maxDictionary)
 	}
+	// A symbol at or above the clear code cannot be coded, and the trie has no slot
+	// for it.
+	if minCodeSize < 8 {
+		for i, b := range data {
+			if int(b)>>minCodeSize != 0 {
+				return nil, fmt.Errorf("lzwopt: byte %d at offset %d does not fit in minCodeSize %d", b, i, minCodeSize)
+			}
+		}
+	}
 	enc := newLZWEncoder(data, minCodeSize, maxDict)
 	defer enc.release()
 	if len(data) == 0 {
-		bs := enc.encodeBlock(0, 0, true, true, opts, nil, 0, 0)
+		var bs BitStream
+		enc.encodeBlock(0, 0, &bs, true, opts, nil, 0, 0)
 		return bs.ToGIFSubBlocks(), nil
 	}
-	bs := enc.optimizeAndMerge(opts)
+	if opts.NonGreedy {
+		enc.prefix = prefixHashes(data)
+	}
+	if w != nil {
+		w.acquire()
+		defer w.release()
+	}
+	bs := enc.optimizeAndMerge(opts, w)
 	return bs.ToGIFSubBlocks(), nil
 }

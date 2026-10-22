@@ -559,3 +559,56 @@ func TestAlignmentPositionsControlsTheSweep(t *testing.T) {
 		prev = len(out)
 	}
 }
+
+// TestWorkersMatchSequential checks that borrowing workers for the sweep changes
+// nothing in the output, whatever their number. The small dictionary makes the token
+// limit grow during the sweep, so some borrowed scans fall short of the limit they are
+// resolved under and have to be redone.
+func TestWorkersMatchSequential(t *testing.T) {
+	periodic := make([]byte, 30000)
+	for i := range periodic {
+		periodic[i] = byte((i % 37) * 3 % 64)
+	}
+	noisy := make([]byte, 30000)
+	for i := range noisy {
+		noisy[i] = byte((i*7 + i/13 + i*i/97) % 64)
+	}
+	inputs := map[string][]byte{"periodic": periodic, "noisy": noisy}
+
+	small := DefaultOptions()
+	small.MaxDictionary = 300
+	fine := DefaultOptions()
+	fine.Alignment = 50
+	greedy := DefaultOptions()
+	greedy.NonGreedy = false
+	configs := map[string]Options{"default": DefaultOptions(), "small-dictionary": small, "fine": fine, "greedy": greedy}
+
+	for in, data := range inputs {
+		for cn, opts := range configs {
+			want, err := Encode(data, 6, opts)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, n := range []int{1, 2, 7} {
+				t.Run(fmt.Sprintf("%s/%s/workers=%d", in, cn, n), func(t *testing.T) {
+					got, err := NewWorkers(n).Encode(data, 6, opts)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if !bytes.Equal(got, want) {
+						t.Errorf("%d bytes with workers, %d without", len(got), len(want))
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestEncodeRejectsBytesAboveTheClearCode(t *testing.T) {
+	if _, err := Encode([]byte{0, 1, 2, 3, 4}, 2, DefaultOptions()); err == nil {
+		t.Error("expected an error for byte 4 at minCodeSize 2")
+	}
+	if _, err := Encode([]byte{0, 1, 2, 3}, 2, DefaultOptions()); err != nil {
+		t.Errorf("bytes below the clear code: %v", err)
+	}
+}

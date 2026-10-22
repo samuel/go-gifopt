@@ -76,18 +76,12 @@ func BenchmarkEncodeBlock(b *testing.B) {
 	opts.NonGreedy = true
 
 	enc := newLZWEncoder(data, minCodeSize, 4095)
-	alignment := 1
-	bestSize := len(data)/alignment + 2
-	best := make([]bestBlock, bestSize)
+	var scan scanResult
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for range b.N {
-		// Reset best slice for each iteration to simulate fresh DP state.
-		for i := range best {
-			best[i] = bestBlock{}
-		}
-		enc.encodeBlock(0, 0, false, true, opts, best, alignment, 0)
+		enc.encodeBlock(0, 0, nil, true, opts, &scan, 1, 0)
 	}
 }
 

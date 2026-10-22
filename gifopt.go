@@ -19,8 +19,8 @@ import (
 //
 // What varies is how many candidate block starts the LZW search sweeps per frame, and
 // whether it uses non-greedy matching. Measured over the corpus against
-// LevelThorough: LevelBalanced costs 0.77% for 6x less time, and LevelFast costs 12.5%
-// for 18x less, from 1.2% on a cartoon to 13% on video frames.
+// LevelThorough: LevelBalanced costs 0.78% for 5x less time, and LevelFast costs 12.7%
+// for 11x less, from 1.7% to 64% per file.
 type Level int
 
 const (
@@ -83,7 +83,7 @@ func (o Options) EncoderOptions() (gifenc.Options, error) {
 
 // withSearch returns opts with the given search breadth, turning NonGreedy and
 // SmartGreedy on or off together: non-greedy alone can compress worse than plain
-// greedy, and turning the pair off is three times faster for about 0.4% in size.
+// greedy, and turning the pair off is three times faster for about 0.7% in size.
 func withSearch(opts gifenc.LZWOptions, positions int, nonGreedy bool) gifenc.LZWOptions {
 	opts.AlignmentPositions = positions
 	opts.NonGreedy = nonGreedy

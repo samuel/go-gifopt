@@ -57,8 +57,8 @@ func resolvedConcurrency(c int) int {
 func main() {
 	level := flag.Int("O", levelDefault,
 		"optimization level: 0=re-encode only, 1=fast, 2=balanced, 3=thorough. "+
-			"Compared to level 3, output is typically about 0.8% larger at level 2 (6x faster), "+
-			"12% larger at level 1 (18x faster) and 51% larger at level 0. "+
+			"Compared to level 3, output is typically about 0.8% larger at level 2 (5x faster), "+
+			"13% larger at level 1 (11x faster) and 52% larger at level 0. "+
 			"Flags set explicitly override the level")
 
 	// Frame optimization flags

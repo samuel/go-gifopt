@@ -31,31 +31,6 @@ func (b *BitStream) Len() int {
 	return b.nBits
 }
 
-// Append appends all bits from other to b.
-func (b *BitStream) Append(other *BitStream) {
-	if other == nil || other.nBits == 0 {
-		return
-	}
-	shift := uint(b.nBits & 7)
-	otherBytes := (other.nBits + 7) >> 3
-	needed := (b.nBits + other.nBits + 7) >> 3
-	// Allocate needed+1 so the shift loop can safely spill into a scratch byte.
-	if needed+1 > len(b.buf) {
-		b.buf = append(b.buf, make([]byte, needed+1-len(b.buf))...)
-	}
-	base := b.nBits >> 3
-	if shift == 0 {
-		copy(b.buf[base:], other.buf[:otherBytes])
-	} else {
-		for i := range otherBytes {
-			v := uint(other.buf[i])
-			b.buf[base+i] |= byte(v << shift)
-			b.buf[base+i+1] |= byte(v >> (8 - shift))
-		}
-	}
-	b.nBits += other.nBits
-}
-
 // ToGIFSubBlocks wraps the packed bytes in GIF sub-blocks: each at most 255 bytes,
 // prefixed by its length, and terminated by a zero byte.
 func (b *BitStream) ToGIFSubBlocks() []byte {

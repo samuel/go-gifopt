@@ -27,8 +27,10 @@ type Options struct {
 	// LZW controls the compression search. nil uses DefaultLZWOptions.
 	LZW *LZWOptions
 
-	// Concurrency is the number of goroutines used for parallel LZW compression.
-	// 0 or negative defaults to runtime.NumCPU(). Set to 1 to disable parallelism.
+	// Concurrency is how many LZW searches run at once. Frames are compressed in
+	// parallel, and a frame borrows workers that would otherwise sit idle, as when
+	// fewer frames are left than workers. 0 or negative defaults to runtime.NumCPU().
+	// Set to 1 to disable parallelism. The output is the same whatever its value.
 	Concurrency int
 
 	// Progress is an optional callback invoked during encoding. It is always called
@@ -409,6 +411,13 @@ func EncodeAll(w io.Writer, g *gif.GIF, o *Options) error {
 		})
 	}
 
+	// Frames share one budget of LZW workers, so a frame can borrow idle ones when
+	// there are fewer frames left than workers.
+	var lzw *lzwopt.Workers
+	if concurrency > 1 {
+		lzw = lzwopt.NewWorkers(concurrency)
+	}
+
 	work := make(chan int, nFrames)
 	for i := range nFrames {
 		work <- i
@@ -449,7 +458,7 @@ func EncodeAll(w io.Writer, g *gif.GIF, o *Options) error {
 						callProgress()
 					}
 				}
-				compressed, err := lzwopt.Encode(fd.pix, fd.litWidth, frameOpts)
+				compressed, err := lzw.Encode(fd.pix, fd.litWidth, frameOpts)
 				globalFramesDone.Add(1)
 				callProgress() // report frame completion with updated FramesDone
 				results[i] <- compressResult{fd.header, compressed, err}

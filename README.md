@@ -88,14 +88,15 @@ level changes what the animation looks like:
 
 | Level | Use | Size compared to `-O 3` | Time |
 | --- | --- | --- | --- |
-| `-O 0` | Re-encode only, no frame optimization. Useful as a baseline, not for real use. | +51% | 105x faster |
-| `-O 1` | Fast. | +12.5% | 18x faster |
-| `-O 2` | **Balanced, the default.** | +0.8% | 6x faster |
+| `-O 0` | Re-encode only, no frame optimization. Useful as a baseline, not for real use. | +52% | 850x faster |
+| `-O 1` | Fast. | +12.7% | 11x faster |
+| `-O 2` | **Balanced, the default.** | +0.8% | 5x faster |
 | `-O 3` | Thorough: the smallest output this encoder produces. | — | — |
 
-These figures are totals over the test corpus. Per file, level 2 is 0.10% to 0.34%
-larger than level 3, and level 1 is 1.2% larger on a cartoon and 13% larger on 145 kB
-video frames. A coarser search loses more on larger frames, while the time it saves
+These figures are totals over a 13-file, 28 MB corpus, timed on 10 cores. Per file,
+level 2 is 0.22% to 0.51% larger than level 3, except for two files at 9%, and level 1
+is 1.7% to 64% larger: 13% on 145 kB video frames. Level 1's time is mostly frame
+optimization, not compression. A coarser search loses more on larger frames, while the time it saves
 does not grow with frame size.
 
 Any flag given explicitly overrides the level. In the library, `Options.Level` accepts
@@ -104,11 +105,11 @@ as skipping `frames.Optimize`. The finer-grained settings:
 
 | Setting | Effect |
 | --- | --- |
-| `gifenc.LZWOptions.AlignmentPositions` | How many candidate dictionary restart points the encoder searches per frame. This is the main trade-off between time and size, and it is what `-O` sets. Encoding time is roughly proportional to it. The default of 256 is where returns start to fall off: raising it to 2048 makes the output 0.77% smaller but takes 6x as long, and the size saved per extra second of encoding drops tenfold across that range. |
+| `gifenc.LZWOptions.AlignmentPositions` | How many candidate dictionary restart points the encoder searches per frame. This is the main trade-off between time and size, and it is what `-O` sets. Encoding time is roughly proportional to it. The default of 256 is where returns start to fall off: raising it to 2048 makes the output 0.77% smaller but takes 7.7x as long, and the size saved per extra second of encoding drops more than tenfold across that range. |
 | `gifenc.LZWOptions.Alignment` | The same setting, expressed as a fixed number of bytes. Prefer `AlignmentPositions`: 512 bytes gives 139 candidates in a 71 kB video frame but only one in a 4 kB cartoon frame, so a byte count can't set a consistent search effort across an animation. |
-| `frames.Config.DisableFrameCompressibilityCheck` | The optimizer builds several transparency candidates per frame and compresses each one to find the smallest. Disabling this check saves about 12% of the time but makes output up to 2.8% larger, so it is rarely worth it. |
-| `gifenc.Options.Concurrency` | How many frames are LZW-compressed in parallel. Defaults to `runtime.NumCPU()`. Frames are still written in order. |
-| `gifenc.LZWOptions.NonGreedy`, `SmartGreedy` | One-step lookahead matching, and an extra greedy pass that keeps it in check. Both are on by default and should be set together. Non-greedy matching saves 0.4–0.9%, but on its own it can compress *worse* than a plain greedy encoder; the greedy pass prevents that. To go faster, turn both off: it is three times faster than leaving them on and costs a measured 0.4%. This is what `-O 1` does. |
+| `frames.Config.DisableFrameCompressibilityCheck` | The optimizer builds several transparency candidates per frame and compresses each one to find the smallest. Disabling this check saves about 20% of the time but makes output 1.8% larger overall and up to 18% larger on some files, so it is rarely worth it. |
+| `gifenc.Options.Concurrency` | How many LZW searches run in parallel. Frames are compressed in parallel, and when fewer frames are left than workers, as at the end of an animation or in one with few frames, a frame's search spreads over the idle ones. Defaults to `runtime.NumCPU()`. The output is identical whatever the value, and frames are still written in order. |
+| `gifenc.LZWOptions.NonGreedy`, `SmartGreedy` | One-step lookahead matching, and an extra greedy pass that keeps it in check. Both are on by default and should be set together. Together they save 0.7%: under 0.8% on most files, but about 7% on some. Non-greedy matching on its own can compress *worse* than a plain greedy encoder; the greedy pass prevents that, and adds 0.2% of its own. To go faster, turn both off: it is three times faster than leaving them on. This is what `-O 1` does. |
 | `frames.Config.LossyTransparencyTolerance` | The only lossy setting worth using, and only on GIFs made from video. On flat, cartoon-like animations it has no effect, because their palettes are too coarse for a small tolerance to match anything. Over the corpus, a tolerance of 4 saves about 1% overall (up to 20% on one video-derived file) and 8 saves 16% overall (up to 48%). The change at 4 is invisible; at 8 it is hard to see but no longer negligible. |
 
 For reference, on a local corpus of 18 GIFs (29.4 MB in total, mostly files from the
